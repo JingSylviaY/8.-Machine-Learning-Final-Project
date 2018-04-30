@@ -1,0 +1,124 @@
+---
+title: "Machine Learning Final Project"
+author: "Sylvia Yin"
+date: "April 30, 2018"
+output: html_document
+---
+
+####Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement.A group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+####Overview of the data
+
+Six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz5E6GrxVGS
+
+#####Goal
+
+In this project, the goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways.
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. 
+
+####How do we approch this goal
+
+1. Describing how to choose the best model
+2. Use cross validation, 
+3. Expected out of sample error is
+4. Why you made the choices you did
+5. Use the selected prediction model to predict 20 different test cases
+
+
+####Load data and exploratory data analysis
+
+```{r message=FALSE}
+library(AppliedPredictiveModeling)
+library(caret)
+library(rpart)
+library(randomForest)
+library(gbm)
+library(e1071)
+
+training<-read.csv("C:/Users/yinjing/Desktop/R/Coursera/pml-training.csv", na.string=c("NA","#DIV/0!", ""))
+
+testing<-read.csv("C:/Users/yinjing/Desktop/R/Coursera/pml-testing.csv",na.string=c("NA","#DIV/0!", ""))
+
+dim(training)
+dim(testing)
+inTrain = createDataPartition(training$classe,p=0.7, list=FALSE)
+myTraining<-training[inTrain,]
+myTesting<-training[-inTrain,]
+```
+
+**data cleaning**
+
+1. remove NearZeroVariance variables
+2. remove variable with more than 97% NA's
+3. remove non-predictor variables:"X","user_name", "raw_timestamp_part_1","raw_timestamp_part_2", "cvtd_timestamp", "num_window"
+
+```{r cache=TRUE}
+#remove NearZeroVariance variables
+nzv<-nearZeroVar(myTraining)
+myTraining<-myTraining[,-nzv]
+myTesting<-myTesting[,-nzv]
+
+#remove variable with more than 97% NA's
+
+remV<-sapply(myTraining, function(x) mean(is.na(x)))
+
+
+myTraining<-myTraining[, remV<0.03]
+myTesting<-myTesting[, remV<0.03]
+
+#remove non-predictor variables
+myTraining<-myTraining[,-c(1:6)]
+myTesting<-myTesting[,-c(1:6)]
+
+
+```
+
+###Build model
+
+to choose the best model, we will fit the data with three machine learning algorithms. we will use Decision Trees, Random Forest and Generalized Boosted Regression Model with 5-fold cross validation.
+
+**Compare different algorithm**
+
+```{r}
+set.seed(1234)
+ctr1<-trainControl(method="repeatedcv", number=5,repeats=1,verboseIter = FALSE)
+
+modFit1<-train(classe~., data=myTraining, method="rf", trControl=ctr1)
+
+```
+
+```{r}
+modFit2<-rpart(classe~., method="class", data=myTraining)
+modFit3<-train(classe~., data=myTraining,  method="gbm",trControl=ctr1, verbose=FALSE)
+
+pred_rf<-predict(modFit1, myTesting)
+pred_rpart<-predict(modFit2,myTesting, type="class")
+pred_gbm<-predict(modFit3, myTesting)
+
+confusionMatrix(pred_rf,myTesting$classe)$overall[1]
+confusionMatrix(pred_rpart,myTesting$classe)$overall[1]
+confusionMatrix(pred_gbm,myTesting$classe)$overall[1]
+```
+
+as we can see that the Random Forest algorithm has the highest accuracy 99.35. so the our of sample error is 1-the accuracy, which is 0.65%
+
+```{r}
+varImp(modFit1)
+
+```
+
+**use the Random Forest prediction model to predict 20 different test cases**
+
+```{r}
+pred_new<-predict(modFit1, newdata=testing)
+pred_new
+
+```
+
+
+
